@@ -2,7 +2,10 @@ const alarmName = "restReminder";
 const timerDuration = 20;
 
 const timer = document.getElementById("timer");
-const button = document.getElementById("button");
+const startButton = document.getElementById("startButton");
+const resetButton = document.getElementById("resetButton");
+
+let countdownInterval;
 
 chrome.alarms.get(alarmName, (alarm) => {
     if (alarm) {
@@ -10,7 +13,7 @@ chrome.alarms.get(alarmName, (alarm) => {
     }
 });
 
-button.addEventListener("click", () => {
+startButton.addEventListener("click", () => {
     chrome.alarms.create(alarmName, {
         delayInMinutes: timerDuration,
         periodInMinutes: timerDuration
@@ -20,18 +23,30 @@ button.addEventListener("click", () => {
     startCountdownUI(targetTime);
 });
 
-function startCountdownUI(targetTime) {
-    button.textContent = "Timer Running...";
-    button.disabled = true;
+resetButton.addEventListener("click", () => {
+    chrome.alarms.clear(alarmName);
+    clearInterval(countdownInterval);
 
-    const intervalID = setInterval(() => {
+    timer.textContent = "20:00";
+
+    startButton.textContent = "Start Timer";
+    startButton.disabled = false;
+});
+
+function startCountdownUI(targetTime) {
+    startButton.textContent = "Timer Running...";
+    startButton.disabled = true;
+
+    if (countdownInterval) clearInterval(countdownInterval);
+
+    countdownInterval = setInterval(() => {
         const timeLeft = targetTime - Date.now();
 
         if (timeLeft <= 0) {
-            clearInterval(intervalID);
+            clearInterval(countdownInterval);
             timer.textContent = "00:00";
-            button.textContent = "Start Timer";
-            button.disabled = false;
+            startButton.textContent = "Start Timer";
+            startButton.disabled = false;
             return;
         }
 
