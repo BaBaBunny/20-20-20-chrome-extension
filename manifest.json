@@ -5,13 +5,14 @@
     "description": "An extension to remind you to take a break every 20 minutes for 20 seconds by looking at something 20 feet away.",
     "action": {
         "default_popup": "popup/popup.html",
-        "default_icon": "images/icon.png"
+        "default_icon": "assets/icon.png"
     },
     "background": {
         "service_worker": "background.js"
     },
     "permissions": [
         "alarms",
-        "notifications"
+        "notifications",
+        "offscreen"
     ]
 }
