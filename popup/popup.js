@@ -1,56 +1,68 @@
 const alarmName = "restReminder";
-const timerDuration = 0.1;
+const timerDuration = 0.01;
 
 const timer = document.getElementById("timer");
 const startButton = document.getElementById("startButton");
 const resetButton = document.getElementById("resetButton");
+const pauseButton = document.getElementById("pauseButton");
 
 let countdownInterval;
+let paused = false;
 
-const savedTargetTime = localStorage.getItem("targetTime");
-if (savedTargetTime) {
-    const timeLeft = parseInt(savedTargetTime) - Date.now();
-    if (timeLeft > 0) {
-        updateTimerDisplay(timeLeft);
-        startCountdownUI(parseInt(savedTargetTime));
-    } else {
-        timer.textContent = "00:00";
-        localStorage.removeItem("targetTime");
-    }
-}
-
-chrome.alarms.get(alarmName, (alarm) => {
-    if (alarm) {
-        if (!localStorage.getItem("targetTime")) {
-            localStorage.setItem("targetTime", alarm.scheduledTime);
-            startCountdownUI(alarm.scheduledTime);
-        } 
-    } else {
-        localStorage.removeItem("targetTime");
-    }
-});
+checkTimerState();
 
 startButton.addEventListener("click", () => {
-    chrome.alarms.create(alarmName, {
-        delayInMinutes: timerDuration,
-        periodInMinutes: timerDuration
-    });
+    startTimer(timerDuration * 60 * 10000);
+});
 
-    const targetTime = Date.now() + timerDuration * 60 * 1000;
-    localStorage.setItem("targetTime", targetTime);
-    startCountdownUI(targetTime);
+pauseButton.addEventListener("click", () => {
+    const paused = pauseButton.textContent === "Resume";
+    if (!paused) {
+        const targetTime = parseInt(localStorage.getItem("targetTime"));
+        const timeLeft = targetTime - Date.now();
+
+        chrome.alarms.clear(alarmName);
+        clearInterval(countdownInterval);
+
+        localStorage.setItem("pausedTimeLeft", timeLeft);
+        localStorage.removeItem("targetTiem");
+
+        pauseButton.textContent = "Resume";
+        startButton.disabled = true;
+    } else {
+        const timeLeft = parseInt(localStorage.getItem("pausedTimeLeft"));
+        startTimer(timeLeft);
+        localStorage.removeItem("pausedTimeLeft");
+        pauseButton.textContent = "Pause";
+    }
 });
 
 resetButton.addEventListener("click", () => {
     chrome.alarms.clear(alarmName);
     clearInterval(countdownInterval);
     localStorage.removeItem("targetTime");
+    localStorage.removeItem("pausedTimeLeft");
 
     timer.textContent = "00:06";
-
     startButton.textContent = "Start Timer";
     startButton.disabled = false;
+
+    pauseButton.textContent = "Pause";
+    pauseButton.disabled = true;
 });
+
+function startTimer(durationMS) {
+    chrome.alarms.create(alarmName, {
+        delayInMinutes: durationMS / 60000
+    });
+
+    const targetTime = Date.now() + durationMS;
+    localStorage.setItem("targetTime", targetTime);
+
+    startButton.disabled = true;
+    pauseButton.disabled = false;
+    startCountdownUI(targetTime);
+}
 
 function updateTimerDisplay(timeLeft) {
     if (timeLeft < 0) timeLeft = 0;
@@ -77,10 +89,40 @@ function startCountdownUI(targetTime) {
             timer.textContent = "00:00";
             startButton.textContent = "Start Timer";
             startButton.disabled = false;
+            pauseButton.disabled = true;
             localStorage.removeItem("targetTime");
             return;
         }
 
         updateTimerDisplay(timeLeft);
     }, 50);
+}
+
+function checkTimerState() {
+    const pausedTime = localStorage.getItem("pausedTimeLeft");
+    if (pausedTime) {
+        updateTimerDisplay(parseInt(pausedTime));
+        pauseButton.textContent = "Resume";
+        pauseButton.disabled = false;
+        startButton.disabled = true;
+        return;
+    }
+
+    const targetTime = localStorage.getItem("targetTime");
+    if (targetTime) {
+        const timeLeft = targetTime - Date.now();
+        if (timeLeft > 0) {
+            startCountdownUI(parseInt(targetTime));
+        } else {
+            timer.textContent = "00:00";
+            localStorage.removeItem("targetTime");
+        }
+    }
+
+    chrome.alarms.get(alarmName, (alarm) => {
+        if (alarm && !localStorage.getItem("targetTime") && !pausedTime) {
+            localStorage.setItem("targetTime", alarm.scheduledTime);
+            startCountdownUI(alarm.scheduledTime);
+        }
+    });
 }
