@@ -1,0 +1,30 @@
+#eyeRestOverlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: rgba(0, 0, 0, 0.95);
+    z-index: 2147483647; /* Max z-index */
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    color: white;
+    font-family: Arial, sans-serif;
+    backdrop-filter: blur(10px);
+}
+
+#eyeRestOverlay h1 {
+    font-size: 5rem;
+    margin-bottom: 20px;
+}
+
+#eyeRestOverlay p {
+    font-size: 1.5rem;
+}
+
+/* Prevent scrolling on the body while this is active */
+body.eyeRestActive {
+    overflow: hidden !important;
+}

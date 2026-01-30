@@ -5,7 +5,7 @@ const resetButton = document.getElementById("resetButton");
 
 let countdownInterval;
 
-const WORK_TIME_MIN = 2;  //in minutes
+const WORK_TIME_MIN = 0.1;  //in minutes
 
 syncUI();
 
@@ -81,6 +81,7 @@ function syncUI() {
         }
 
         const alarm = alarms[0];
+
         startButton.disabled = true;
         pauseButton.disabled = false;
         pauseButton.textContent = "Pause";
@@ -105,12 +106,16 @@ function startCountdownUI(targetTime) {
         
         if (timeLeft <= 0) {
             clearInterval(countdownInterval);
-            setTimeout(syncUI, 50);
+            timer.textContent = "00:00";
+            setTimeout(() => {
+                syncUI();
+            }, 1000);
+
             return;
         }
         
         updateTimerDisplay(timeLeft);
-    }, 50);
+    }, 100);
 }
 
 function updateTimerDisplay(timeLeft) {

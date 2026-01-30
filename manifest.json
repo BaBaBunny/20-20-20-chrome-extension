@@ -13,6 +13,9 @@
     "permissions": [
         "alarms",
         "notifications",
-        "offscreen"
+        "offscreen",
+        "scripting",
+        "activeTab",
+        "storage"
     ]
 }
