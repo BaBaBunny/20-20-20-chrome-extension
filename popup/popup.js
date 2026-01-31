@@ -5,7 +5,7 @@ const resetButton = document.getElementById("resetButton");
 
 let countdownInterval;
 
-const WORK_TIME_MIN = 0.1;  //in minutes
+const WORK_TIME_MIN = 20;  //in minutes
 
 syncUI();
 

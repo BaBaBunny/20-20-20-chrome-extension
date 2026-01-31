@@ -1,6 +1,6 @@
 const OFFSCREEN_PATH = "audio/offscreen.html"
 const REST_TIME_MIN = 1 / 60 * 20; //20 seconds
-const WORK_TIME_MIN = 0.1; //20 minutes
+const WORK_TIME_MIN = 20; //in minutes
 
 //refreshes everything on startup
 chrome.runtime.onStartup.addListener(() => {
