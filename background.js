@@ -87,7 +87,7 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
       //notification popup
       chrome.notifications.create({
         type: "basic",
-        iconUrl: "assets/icon.png",
+        iconUrl: "assets/eye128.png",
         title: "Time to rest your eyes!",
         message: "Look at something 20 feet away for 20 seconds.",
         priority: 2
@@ -118,7 +118,7 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
 
       chrome.notifications.create({
           type: "basic",
-          iconUrl: "assets/icon.png",
+          iconUrl: "assets/eye128.png",
           title: "Break Over",
           message: "Good work. Back to work now!",
           priority: 2
@@ -188,3 +188,11 @@ function removeRestScreen() {
     document.body.style.removeProperty("overflow");
   }
 }
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.action === "reset_timer") {
+    chrome.alarms.clearAll();
+    injectScript(removeRestScreen);
+    chrome.storage.local.clear();
+  }
+})

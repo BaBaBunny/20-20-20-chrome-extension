@@ -54,15 +54,19 @@ pauseButton.addEventListener("click", () => {
 });
 
 resetButton.addEventListener("click", () => {
+    chrome.runtime.sendMessage({action: "reset_timer"});
+
     chrome.alarms.clearAll();
     clearInterval(countdownInterval);
     localStorage.clear();
+    chrome.storage.local.clear();
     
     timer.textContent = "20:00"; // Reset text
     startButton.textContent = "Start Timer";
     startButton.disabled = false;
     pauseButton.textContent = "Pause";
     pauseButton.disabled = true;
+    document.body.style.backgroundColor = ""; //resets background colour
 });
 
 function syncUI() {
