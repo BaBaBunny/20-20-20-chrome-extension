@@ -1,15 +1,27 @@
 const OFFSCREEN_PATH = "audio/offscreen.html"
-const REST_TIME_MIN = 1 / 60 * 20; //20 seconds
-const WORK_TIME_MIN = 20; //in minutes
+const REST_TIME_MIN = (1 / 60) * 20; //20 seconds
+export const WORK_TIME_MIN = 20; //in minutes
 
-//refreshes everything on startup
+async function playReminderSound() {
+  const { volume = 1 } = await chrome.storage.sync.get({ volume: 1 });
+  chrome.runtime.sendMessage({
+    action: "play_audio",
+    source: chrome.runtime.getURL("assets/ding.mp3"),
+    volume
+  });
+}
+
+//refreshes everything on startups
 chrome.runtime.onStartup.addListener(() => {
   chrome.storage.local.clear();
 });
 
+chrome.runtime.onInstalled.addListener(() => {
+  chrome.alarms.create("workTimer", { delayInMinutes: WORK_TIME_MIN });
+});
+
 async function createOffscreenDocument(path) {
-  // Check all windows controlled by the service worker to see if one
-  // of them is the offscreen document with the given path
+  // Check all windows controlled by the service worker to see if one of them is the offscreen document with the given path
   const existingContexts = await chrome.runtime.getContexts({
     contextTypes: ['OFFSCREEN_DOCUMENT'],
     documentUrls: [chrome.runtime.getURL(OFFSCREEN_PATH)]
@@ -27,35 +39,57 @@ async function createOffscreenDocument(path) {
 
 // handles tab switching on same window
 chrome.tabs.onActivated.addListener(async (activeInfo) => {
-  const data = await chrome.storage.local.get(["lockedTabId", "lockedWindowId"]);
+  const data = await chrome.storage.local.get(["isResting", "lockedTabId", "lockedWindowId"]);
+
+  if (!data.isResting) return;
+
+  injectScript(showRestScreen, activeInfo.tabId);
 
   if (data.lockedTabId && activeInfo.tabId !== data.lockedTabId) {
-    chrome.tabs.update(data.lockedTabId, {active: true}).catch(() => {});
+    forceTabFocus(data.lockedTabId, data.lockedWindowId);
+  }
+});
 
-    if(data.lockedWindowId) {
-      chrome.windows.update(data.lockedWindowId, {focused: true}).catch(() => {});
+// helper to bypass mouse clicking for tabs switching
+function forceTabFocus(tabId, windowId, retries = 5) {
+  chrome.tabs.update(tabId, {active: true}).catch(() => {
+    if (retries > 0) {
+    setTimeout(() => forceTabFocus(tabId, windowId, retries - 1), 100);
+    }
+  });
+
+  if (windowId) {
+    chrome.windows.update(windowId, {focused: true}).catch(() => {});
+  }
+}
+
+// adds back the look away lock screen when page is refreshed or tab is restored (from commands: ctrl+R or ctrl+shift+T)
+chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
+  // triggers both when loading starts (DOM ready) and when complete
+  if (changeInfo.status == "loading" || changeInfo.status == "complete") {
+    const data = await chrome.storage.local.get(["isResting"]);
+    if (data.isResting && tab.active) {
+      injectScript(showRestScreen, tabId);
     }
   }
 });
 
 // handles window switching like alt-tab or multiple monitors
 chrome.windows.onFocusChanged.addListener(async (windowId) => {
-  if (windowId === chrome.windows.WINDOW_ID_NONE)
-    return;
+  if (windowId === chrome.windows.WINDOW_ID_NONE) return;
 
-  const data = await chrome.storage.local.get(["lockedTabId", "lockedWindowId"]);
+  const data = await chrome.storage.local.get(["isResting", "lockedTabId", "lockedWindowId"]);
 
-  if (data.lockedWindowId !== null && windowId !== data.lockedWindowId) {
-    chrome.windows.update(data.lockedWindowId, {focused: true}).catch(() => {});
-    chrome.tabs.update(data.lockedTabId, {active: true}).catch(() => {});
+  if (data.isResting && data.lockedWindowId && windowId !== data.lockedWindowId) {
+    forceTabFocus(data.lockedTabId, data.lockedWindowId);
   }
 });
 
-// disables the locked tabs/windows
+// handles the locked tabs/windows and closing tabs
 chrome.tabs.onRemoved.addListener(async (tabId) => {
-  const data = await chrome.storage.local.get("lockedTabId");
+  const data = await chrome.storage.local.get("isResting", "lockedTabId");
 
-  if (tabId === data.lockedTabId) {
+  if (data.isResting && tabId == data.isLockedTabId) {
     const tabs = await chrome.tabs.query({active: true, currentWindow: true});
     
     if (tabs.length > 0) {
@@ -66,7 +100,7 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
         lockedWindowId: newTab.windowId
       });
 
-      injectScript(showRestScreen);
+      injectScript(showRestScreen, newTab.id);
     } else {
       await chrome.storage.local.clear();
     }
@@ -79,10 +113,7 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
 
     if (alarm.name === "workTimer") {
       //plays ding sound
-      chrome.runtime.sendMessage({
-        action: "play_audio",
-        source: chrome.runtime.getURL("assets/ding.mp3")
-      });
+      await playReminderSound();
 
       //notification popup
       chrome.notifications.create({
@@ -99,11 +130,14 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
         const tab = tabs[0];
 
         await chrome.storage.local.set({
+          isResting: true,
           lockedTabId: tab.id,
           lockedWindowId: tab.windowId
         });
 
-        injectScript(showRestScreen);
+        injectScript(showRestScreen, tab.id);
+      } else {
+        await chrome.storage.local.set({isResting: true});
       }
 
       chrome.alarms.create("restTimer", {delayInMinutes: REST_TIME_MIN});
@@ -111,50 +145,60 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
 
     //ends rest
     else if (alarm.name === "restTimer") {
-      chrome.runtime.sendMessage({
-          action: "play_audio",
-          source: chrome.runtime.getURL("assets/ding.mp3")
-      }).catch(() => {});
+      await playReminderSound();
 
       chrome.notifications.create({
           type: "basic",
           iconUrl: "assets/eye128.png",
           title: "Break Over",
-          message: "Good work. Back to work now!",
+          message: "Good rest. Back to work now!",
           priority: 2
       });
 
-      injectScript(removeRestScreen);
-
+      await clearRestScreenFromAllTabs();
       await chrome.storage.local.clear();
 
       chrome.alarms.create("workTimer", {delayInMinutes: WORK_TIME_MIN});
   }
 });
 
+// helper function to clean up overlay from other tabs that got locked during the break
+async function clearRestScreenFromAllTabs() {
+  const tabs = await chrome.tabs.query({});
+  for (const tab of tabs) {
+    if (tab.id && tab.url && !tab.url.startsWith("chrome://")) {
+      injectScript(removeRestScreen, tab.id);
+    }
+  }
+}
 
 //INJECTION
-function injectScript(func) {
-  chrome.tabs.query({active: true, currentWindow: true}, (tabs) => {
-    if (!tabs || tabs.length === 0)
-      return;
+async function injectScript(func, tabId) {
+  let targetTabId = tabId;
 
-    const currentTab = tabs[0];
+  if (targetTabId === undefined) {
+    const tabs = await chrome.tabs.query({active: true, currentWindow: true});
+    targetTabId = tabs[0]?.id;
+  }
 
-    //checks to see if we are on chrome pages as we cannot inject scripts there
-    if (!currentTab.url || currentTab.url.startsWith("chrome://"))
-      return;
+  if (targetTabId === undefined) {
+    console.warn("Unable to inject the break overlay: no target tab found.");
+    return;
+  }
 
-    chrome.scripting.insertCSS({
-      target: {tabId: currentTab.id},
+  try {
+    await chrome.scripting.insertCSS({
+      target: {tabId: targetTabId},
       files: ["overlay.css"]
-    }).catch(() => {});
+    });
 
-    chrome.scripting.executeScript({
-      target: {tabId: currentTab.id},
-      func: func
-    }).catch(() => {});
-  });
+    await chrome.scripting.executeScript({
+      target: {tabId: targetTabId},
+      func
+    });
+  } catch (error) {
+    console.error(`Unable to inject the break overlay into tab ${targetTabId}:`, error);
+  }
 }
 
 
@@ -193,6 +237,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === "reset_timer") {
     chrome.alarms.clearAll();
     injectScript(removeRestScreen);
+    
     chrome.storage.local.clear();
   }
-})
+});

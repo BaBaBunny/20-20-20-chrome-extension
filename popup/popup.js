@@ -2,12 +2,29 @@ const timer = document.getElementById("timer");
 const startButton = document.getElementById("startButton");
 const pauseButton = document.getElementById("pauseButton");
 const resetButton = document.getElementById("resetButton");
+const volumeSlider = document.getElementById("volumeSlider");
+const volumeValue = document.getElementById("volumeValue");
 
 let countdownInterval;
 
-const WORK_TIME_MIN = 20;  //in minutes
+import { WORK_TIME_MIN } from '../background.js';
 
 syncUI();
+loadVolume();
+
+volumeSlider.addEventListener("input", () => {
+    const volume = Number(volumeSlider.value);
+    volumeValue.textContent = `${volume}%`;
+    chrome.storage.sync.set({ volume: volume / 100 });
+});
+
+function loadVolume() {
+    chrome.storage.sync.get({ volume: 1 }, ({ volume }) => {
+        const percentage = Math.round(volume * 100);
+        volumeSlider.value = percentage;
+        volumeValue.textContent = `${percentage}%`;
+    });
+}
 
 //buttons
 startButton.addEventListener("click", () => {

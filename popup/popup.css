@@ -3,6 +3,14 @@ body {
     text-align: center;
     font-family: Helvetica, sans-serif
 }
+label,
+input[type="range"] {
+    display: block;
+    width: 100%;
+}
+label {
+    margin: 16px 0 6px;
+}
 button {
     background-color: #4285f4;
     color: white;
