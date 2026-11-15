@@ -23,8 +23,7 @@
         "offscreen",
         "scripting",
         "activeTab",
-        "storage",
-        "idle"
+        "storage"
     ],
 
     "host_permissions": ["<all_urls>"],
